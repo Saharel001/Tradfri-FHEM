@@ -1,15 +1,11 @@
-# FHEM Trådfri Module
+# FHEM TrÃ¥dfri Module
 
-This is a small extension module for the FHEM Home-Control software. It enables connectivity to an IKEA Trådfri gateway.
-
-## Important
-
-There will be a bigger update soon. Your action might be required. Read here: <http://electronic.kappelt.net/wordpress/tradfri-upcoming-update/>
+This is a small extension module for the FHEM Home-Control software. It enables connectivity to an IKEA TrÃ¥dfri gateway.
 
 ## Install to FHEM
 Run the following commands to add this repository to your FHEM setup:
 ```
-update add https://raw.githubusercontent.com/peterkappelt/Tradfri-FHEM/master/src/controls_tradfri.txt
+update add https://raw.githubusercontent.com/peterkappelt/Tradfri-FHEM/src/controls_tradfri.txt
 update
 shutdown restart
 ```
@@ -23,27 +19,11 @@ Since there is no documentation yet, FHEM might throw some errors during update.
 * libcoap, and its binary coap-client
 * IKEA devices: a gateway, a bulb and a remote control/ dimmer
 
-You need to have an IKEA Trådfri Bulb or Panel, a Control-Device (e.g. the Dimmer) and the Gateway.  
+You need to have an IKEA TrÃ¥dfri Bulb or Panel, a Control-Device (e.g. the Dimmer) and the Gateway.  
 The gateway has to be set-up with the App, the control device and the bulbs need to be paired.  
 __Caution__: Do not make the same mistake I've made. You can __not__ just buy a bulb and a gateway. You need a control device, like the round dimmer, too!
 
 The JSON-Perl packages are required.
-
-Furthermore, you need to install the software "libcoap". You can find its repository here: https://github.com/obgm/libcoap  
-This library needs to be built, have a look into its documentation. I've run the following commands:
-```
-sudo apt-get install libtool
-
-git clone --recursive https://github.com/obgm/libcoap.git
-cd libcoap
-git checkout dtls
-git submodule update --init --recursive
-./autogen.sh
-./configure --disable-documentation --disable-shared
-make
-sudo make install
-```
-Note: An user reported, that he had to install "autoconf" on his system. You can just run "sudo apt-get install autoconf" on your system.
 
 ## What this module can do
 
@@ -93,12 +73,6 @@ You need to do as follows in order to control a bulb:
 * Save your config by running the `save` command in FHEM 
 * Check, whether the module can detect and access the just compiled software "coap-client" by running `get TradfriGW coapClientVersion`. If it returns something, that looks like a version number, everything should be fine. If it returns "UNKNOWN" there is a problem. Probably, the coap-client directory is not stored in path.
 
-#### Debugging get coapClientVersion = UNKNOWN
-* run `which coap-client` on the system command line. If this command returns nothing, it is likely, that there was an error while compiling and installing libcoap. 
-* On my system, it returns "/usr/local/bin/coap-client"
-* Remove the last part from the path and remember it, now I've got "/usr/local/bin"
-* Edit the definition of the gateway device and append the coap path to its definition: `defmod TradfriGW TradfriGateway <Gateway-IP> <Gateway-Secret-Key> /usr/local/bin`
-* For those, who are used to linux: The third parameter adds something to the FHEM PATH-variable, so the module is able to locate the coap-client
 ### 2. Control a single device
 * Get the list of devices: `get TradfriGW deviceList`. It will return something like that:  
    ```
@@ -133,22 +107,12 @@ You need to do as follows in order to control a bulb:
 
 ## What to do, if my FHEM isn't responding anymore?
 
-Actually, this shouldn't happen anymore. Wait 5 seconds, and all processes, that are related to this Trådfri module, should kill themselves (if there is a configuration error, that isn't yet handled by this module).    
+Actually, this shouldn't happen anymore. Wait 5 seconds, and all processes, that are related to this TrÃ¥dfri module, should kill themselves (if there is a configuration error, that isn't yet handled by this module).    
 If you managed to kill this module, fell free to contact me (with your log, you configuration and a description, of what you did to make FHEM unresponsible).
 
 ## Credits
-I'd like to thank the guys from the home-assistant.io community, they already did some reverse-engineering of the protocol, which helped me implementing the protocol.   
-https://community.home-assistant.io/t/ikea-tradfri-gateway-zigbee/14788/18
-
-## Manual
-
-This manual, in its up-to-date version, for this module, and a translation, is available on my website.
-See <http://electronic.kappelt.net/wordpress/en/ikea-tradfri-module-for-fhem/> (English) or
-<http://electronic.kappelt.net/wordpress/de/ikea-tradfri-module-for-fhem/> (Deutsch).
-You may also leave a comment there. A FAQ page will be created soon.
-You can find a thread in the FHEM forum here: <https://forum.fhem.de/index.php/topic,70653.0.html>
+FORK from https://github.com/peterkappelt/Tradfri-FHEM
 
 ## Contact me
-
+You may also leave a comment there. A FAQ page will be created soon.
 If you've a github account: please open an issue, with the appropriate description of your problem.
-You may send me an email, though issues are prefered: <kappelt.peter@gmail.com>
