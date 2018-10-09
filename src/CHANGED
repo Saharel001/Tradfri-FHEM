@@ -1,3 +1,9 @@
+- 9.8.2018 (1.18)
+  - feature:    30_TradfriGateway: add jTradfriSocket attribute
+  - bugfix:     31_TradfriGroup: add new author and version
+  - bugfix:     31_TradfriDevice: add new author and version
+  - bugfix:     TradfriUtils.pm: add new author and version
+  
 - 27.8.2017 (1.16.dev-cf.9)
   - bugfix:     Error messages with some Perl versions
 
