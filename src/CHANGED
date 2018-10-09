@@ -1,4 +1,7 @@
 - 9.8.2018 (1.18)
+  - bugfix:     30_TradfriGateway: rename jTradfrieSocket attribute to jTradfriSocket
+  
+- 9.8.2018 (1.18)
   - feature:    30_TradfriGateway: add jTradfriSocket attribute
   - bugfix:     31_TradfriGroup: add new author and version
   - bugfix:     31_TradfriDevice: add new author and version

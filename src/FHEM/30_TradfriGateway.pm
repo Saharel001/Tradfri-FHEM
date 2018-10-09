@@ -37,7 +37,7 @@ sub TradfriGateway_Initialize($) {
 			};
 
 	$hash->{AttrList} =
-		"JTradfrieSocket "
+		"JTradfriSocket "
 		. $readingFnAttributes;
 }
 
@@ -57,6 +57,7 @@ sub TradfriGateway_Define($$) {
 	$hash->{gatewaySecret} = $param[3];
 
 	# @todo make user settable
+	# Attribute JTradfriSocket added
 	$hash->{DeviceName} = "localhost:1505";
 	
 
@@ -245,7 +246,7 @@ sub TradfriGateway_Attr(@) {
 	my @hashL;
 	my $hash = $defs{$name};
 	if($cmd eq "set") {
-		if ($attrName eq "JTradfrieSocket"){
+		if ($attrName eq "JTradfriSocket"){
 			if ($attrVal =~ /\b(\d{1,3}(?:\.\d{1,3}){3}:\d{1,5})\b/)
 			{
 				$hash->{DeviceName} = $attrVal;
