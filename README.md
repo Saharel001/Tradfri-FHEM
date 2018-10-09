@@ -5,7 +5,7 @@ This is a small extension module for the FHEM Home-Control software. It enables 
 ## Install to FHEM
 Run the following commands to add this repository to your FHEM setup:
 ```
-update add https://raw.githubusercontent.com/peterkappelt/Tradfri-FHEM/src/controls_tradfri.txt
+update add https://raw.githubusercontent.com/Saharel001/Tradfri-FHEM/src/controls_tradfri.txt
 update
 shutdown restart
 ```
@@ -24,6 +24,9 @@ The gateway has to be set-up with the App, the control device and the bulbs need
 __Caution__: Do not make the same mistake I've made. You can __not__ just buy a bulb and a gateway. You need a control device, like the round dimmer, too!
 
 The JSON-Perl packages are required.
+```
+sudo apt-get libjson-perl
+```
 
 ## What this module can do
 
