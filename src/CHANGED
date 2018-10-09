@@ -1,8 +1,5 @@
-- 8.8.2017 (1.17)
-  - IMPORTANT:  Important upcomping updates! Please read
-          http://electronic.kappelt.net/wordpress/tradfri-upcoming-update/
-                as soon as possible!
-  - bugfix:     31_TradfriGroup: fixed zero-division
+- 27.8.2017 (1.16.dev-cf.9)
+  - bugfix:     Error messages with some Perl versions
 
 - 5.7.2017 (1.16)
   - bugfix:     31_TradfriGroup: no more warnings ("smartmatch") @ FHEM startup

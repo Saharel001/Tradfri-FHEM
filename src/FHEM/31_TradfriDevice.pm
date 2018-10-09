@@ -1,276 +1,104 @@
 # @author Peter Kappelt
-# @version 1.17
+# @author Clemens Bergmann
+# @author Sebastian Kessler
+
+# @version 1.18
 
 package main;
 use strict;
 use warnings;
 
 use Data::Dumper;
+use JSON;
 
-use TradfriLib;
-
-my %TradfriDevice_gets = (
-	'deviceInfo'	=> ' ',
-	'type'			=> ' ',
-	'manufacturer'	=> ' ',
-	'dimvalue'		=> ' ',
-	'state'			=> ' ',
-	'name'			=> ' ',
-	'createdAt'		=> ' ',
-	'reachableState'=> ' ',
-	'lastSeen'		=> ' ',
-	'color'			=> ' ',
-	'softwareVersion' => ' ',
-	'updateInfo'	=> ' ',
-);
-
-my %TradfriDevice_sets = (
-	'on'		=> '',
-	'off'		=> '',	
-	'dimvalue'	=> '',
-	'color'		=> '',
-);
+use TradfriUtils;
 
 sub TradfriDevice_Initialize($) {
 	my ($hash) = @_;
 
-	$hash->{DefFn}      = 'TradfriDevice_Define';
-	$hash->{UndefFn}    = 'TradfriDevice_Undef';
-	$hash->{SetFn}      = 'TradfriDevice_Set';
-	$hash->{GetFn}      = 'TradfriDevice_Get';
-	$hash->{AttrFn}     = 'TradfriDevice_Attr';
-	$hash->{ReadFn}     = 'TradfriDevice_Read';
+	$hash->{DefFn}      = 'Tradfri_Define';
+	$hash->{UndefFn}    = 'Tradfri_Undef';
+	$hash->{SetFn}      = 'Tradfri_Set';
+	$hash->{GetFn}      = 'Tradfri_Get';
+	$hash->{AttrFn}     = 'Tradfri_Attr';
+	$hash->{ReadFn}     = 'Tradfri_Read';
+	$hash->{ParseFn}	= 'TradfriDevice_Parse';
 
-	$hash->{Match} = ".*";
+	$hash->{Match} = '^subscribedDeviceUpdate::';
 
 	$hash->{AttrList} =
-		"autoUpdateInterval "
-		. "usePercentDimming:1,0 "
+		"usePercentDimming:1,0 "
 		. $readingFnAttributes;
 }
 
-sub TradfriDevice_Define($$) {
-	my ($hash, $def) = @_;
-	my @param = split('[ \t]+', $def);
-	
-	if(int(@param) < 3) {
-		return "too few parameters: define <name> TradfriDevice <DeviceAddress>";
-	}
-   
-	$hash->{name}  = $param[0];
-	$hash->{deviceAddress} = $param[2];
+#messages look like this: (without newlines)
+# subscribedDeviceUpdate::device-id::{
+#    "lastSeenAt":1501407261,
+#    "createdAt":1492280964,
+#    "reachabilityState":1,
+#    "name":"Fenster Links",
+#    "dimvalue":200,
+#    "type":"TRADFRI bulb E27 opal 1000lm",
+#    "deviceid":65537,
+#    "version":"1.1.1.0-5.7.2.0",
+#    "manufacturer":"IKEA of Sweden",
+#    "onoff":0
+# }
+sub TradfriDevice_Parse ($$){
+	my ($io_hash, $message) = @_;
 
-	AssignIoPort($hash);
+	my @parts = split('::', $message);
 
-	return undef;
-}
-
-sub TradfriDevice_Undef($$) {
-	my ($hash, $arg) = @_; 
-	# nothing to do
-	return undef;
-}
-
-sub TradfriDevice_GetUpdate($@){
-	my ($hash) = @_;
-
-	if(AttrVal($hash->{name}, 'autoUpdateInterval', 0) != 0){
-		TradfriDevice_Get($hash, $hash->{name}, 'updateInfo');
-
-		InternalTimer(gettimeofday()+AttrVal($hash->{name}, 'autoUpdateInterval', 30), "TradfriDevice_GetUpdate", $hash);
-	}
-}
-
-sub TradfriDevice_Get($@) {
-	my ($hash, @param) = @_;
-	
-	return '"get TradfriDevice" needs at least one argument' if (int(@param) < 2);
-	
-	my $name = shift @param;
-	my $opt = shift @param;
-	if(!$TradfriDevice_gets{$opt}) {
-		my @cList = keys %TradfriDevice_gets;
-		return "Unknown argument $opt, choose one of " . join(" ", @cList);
+	if(int(@parts) < 3){
+		#expecting at least three parts
+		return undef;
 	}
 	
-	if($opt eq 'deviceInfo'){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
+	my $messageID = $parts[1];
+
+	#check if device with the id exists
+	if(my $hash = $modules{'TradfriDevice'}{defptr}{$messageID}) 
+	{
+		# the path returned "Not Found" -> unknown resource, but this message still suits for this device
+		if($parts[2] eq "Not Found"){
+			$hash->{STATE} = "NotFound";
+			return $hash->{NAME};
 		}
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
+
+		#parse the JSON data
+		my $jsonData = eval{ JSON->new->utf8->decode($parts[2]) };
+		if($@){
+			return undef; #the string was probably not valid JSON
+		}
+
+		my $manufacturer = $jsonData->{'manufacturer'} || '';
+		my $type = $jsonData->{'type'} || '';
 		
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		return(Dumper($jsonDeviceInfo));
-	}elsif($opt eq 'manufacturer'){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
+		#dimvalue is in range 0 - 254
+		my $dimvalue = $jsonData->{'dimvalue'} || '0';
+		#dimpercent is always in range 0 - 100
+		my $dimpercent = int($dimvalue / 2.54 + 0.5);
+		$dimpercent = 1 if($dimvalue == 1);
+		$dimvalue = $dimpercent if (AttrVal($hash->{NAME}, 'usePercentDimming', 0) == 1);
 		
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $manufacturer = TradfriLib::getDeviceManufacturer($jsonDeviceInfo);
-
-		readingsSingleUpdate($hash, 'manufacturer', $manufacturer, 1);
-		return($manufacturer);
-	}elsif($opt eq 'type'){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
+		my $state = 'off';
+		if($jsonData->{'onoff'} eq '0'){
+			$dimpercent = 0;
+		}else{
+        	$state = Tradfri_stateString($dimpercent);
+        }
 		
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $type = TradfriLib::getDeviceType($jsonDeviceInfo);
-
-		readingsSingleUpdate($hash, 'type', $type, 1);
-		return($type);
-	}elsif($opt eq 'dimvalue'){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $dimvalue = TradfriLib::getDeviceBrightness($jsonDeviceInfo);
-
-		$dimvalue = int($dimvalue / 2.54 + 0.5) if (AttrVal($hash->{name}, 'usePercentDimming', 0) == 1);
-
-		readingsSingleUpdate($hash, 'dimvalue', $dimvalue, 1);
-		return($dimvalue);
-	}elsif($opt eq 'state'){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $state = TradfriLib::getDeviceOnOff($jsonDeviceInfo) ? 'on':'off';
-
-		readingsSingleUpdate($hash, 'state', $state, 1);
-		return($state);
-	}elsif($opt eq 'name'){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $name = TradfriLib::getDeviceName($jsonDeviceInfo);
-
-		readingsSingleUpdate($hash, 'name', $name, 1);
-		return($name);
-	}elsif($opt eq 'createdAt'){
-		#check, whether we can connect to the gateway
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $createdAt = FmtDateTimeRFC1123(TradfriLib::getDeviceCreatedAt($jsonDeviceInfo));
-		readingsSingleUpdate($hash, 'createdAt', $createdAt, 1);
-		return $createdAt;
-	}elsif($opt eq 'softwareVersion'){
-		#check, whether we can connect to the gateway
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $version = TradfriLib::getDeviceSoftwareVersion($jsonDeviceInfo);
-		readingsSingleUpdate($hash, 'softwareVersion', $version, 1);
-		return $version;
-	}elsif($opt eq 'reachableState'){
-		#check, whether we can connect to the gateway
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $reachable = TradfriLib::getDeviceReachableState($jsonDeviceInfo);
-		readingsSingleUpdate($hash, 'reachableState', $reachable, 1);
-		return $reachable;
-	}elsif($opt eq 'lastSeen'){
-		#check, whether we can connect to the gateway
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $lastSeen = FmtDateTimeRFC1123(TradfriLib::getDeviceLastSeen($jsonDeviceInfo));
-		readingsSingleUpdate($hash, 'lastSeen', $lastSeen, 1);
-		return $lastSeen;
-	}elsif($opt eq 'color'){
-		#check, whether we can connect to the gateway
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $color = TradfriLib::getDeviceColor($jsonDeviceInfo);
-		readingsSingleUpdate($hash, 'color', $color, 1);
-		return $color;
-	}elsif($opt eq 'updateInfo'){
-		#check, whether we can connect to the gateway
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-
-		my $jsonDeviceInfo = TradfriLib::getDeviceInfo($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress});
-		if(!defined($jsonDeviceInfo)){
-			return "Error while fetching device info!";
-		}
-
-		my $manufacturer = TradfriLib::getDeviceManufacturer($jsonDeviceInfo);
-		my $type = TradfriLib::getDeviceType($jsonDeviceInfo);
-		my $dimvalue = TradfriLib::getDeviceBrightness($jsonDeviceInfo);
-		$dimvalue = int($dimvalue / 2.54 + 0.5) if (AttrVal($hash->{name}, 'usePercentDimming', 0) == 1);
-		my $state = TradfriLib::getDeviceOnOff($jsonDeviceInfo) ? 'on':'off';
-		my $name = TradfriLib::getDeviceName($jsonDeviceInfo);
-		my $createdAt = FmtDateTimeRFC1123(TradfriLib::getDeviceCreatedAt($jsonDeviceInfo));
-		my $reachableState = TradfriLib::getDeviceReachableState($jsonDeviceInfo);
-		my $lastSeen = FmtDateTimeRFC1123(TradfriLib::getDeviceLastSeen($jsonDeviceInfo));
-		my $color = TradfriLib::getDeviceColor($jsonDeviceInfo);
-		my $version = TradfriLib::getDeviceSoftwareVersion($jsonDeviceInfo);
+        my $onoff = ($jsonData->{'onoff'} || '0') ? 'on':'off';
+		my $name = $jsonData->{'name'} || '';
+		my $createdAt = FmtDateTimeRFC1123($jsonData->{'createdAt'} || '');
+		my $reachableState = $jsonData->{'reachabilityState'} || '';
+		my $lastSeen = FmtDateTimeRFC1123($jsonData->{'lastSeenAt'} || '');
+		my $color = $jsonData->{'color'} || '';
+		my $version = $jsonData->{'version'} || '';
 
 		readingsBeginUpdate($hash);
 		readingsBulkUpdateIfChanged($hash, 'dimvalue', $dimvalue, 1);
+		readingsBulkUpdateIfChanged($hash, 'pct', $dimpercent, 1);
 		readingsBulkUpdateIfChanged($hash, 'state', $state, 1);
 		readingsBulkUpdateIfChanged($hash, 'name', $name, 1);
 		readingsBulkUpdateIfChanged($hash, 'createdAt', $createdAt, 1);
@@ -280,105 +108,19 @@ sub TradfriDevice_Get($@) {
 		readingsBulkUpdateIfChanged($hash, 'reachableState', $reachableState, 1);
 		readingsBulkUpdateIfChanged($hash, 'color', $color, 1);
 		readingsBulkUpdateIfChanged($hash, 'lastSeen', $lastSeen, 1);
-		readingsEndUpdate($hash, 1);	
-	}
-
-	return $TradfriDevice_gets{$opt};
-}
-
-sub TradfriDevice_Set($@) {
-	my ($hash, @param) = @_;
+		readingsBulkUpdateIfChanged($hash, 'onoff', $onoff, 1);
+		readingsEndUpdate($hash, 1);
 	
-	return '"set TradfriDevice" needs at least one argument' if (int(@param) < 2);
-
-	my $argcount = int(@param);
-	
-	my $name = shift @param;
-	my $opt = shift @param;
-	my $value = join("", @param);
-	
-	if(!defined($TradfriDevice_sets{$opt})) {
-		my @cList = keys %TradfriDevice_sets;
-		#return "Unknown argument $opt, choose one of " . join(" ", @cList);
-		my $dimvalueMax = 254;
-		$dimvalueMax = 100 if (AttrVal($hash->{name}, 'usePercentDimming', 0) == 1);
-
-		return "Unknown argument $opt, choose one of on off dimvalue:slider,0,1,$dimvalueMax color:warm,cold,standard";
-	}
-	
-	$TradfriDevice_sets{$opt} = $value;
-
-	if($opt eq "on"){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-		$hash->{STATE} = 'on';
-		TradfriLib::lampSetOnOff($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress}, 1);
-		readingsSingleUpdate($hash, 'state', 'on', 1);
-	}elsif($opt eq "off"){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-		$hash->{STATE} = 'off';
-		TradfriLib::lampSetOnOff($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress}, 0);
-		readingsSingleUpdate($hash, 'state', 'off', 1);
-	}elsif($opt eq "dimvalue"){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-		return '"set TradfriDevice dimvalue" requires a brightness-value between 0 and 254!'  if ($argcount < 3);
+		#$attr{$hash->{NAME}}{webCmd} = 'pct:toggle:on:off';
+		#$attr{$hash->{NAME}}{devStateIcon} = '{(Tradfri_devStateIcon($name),"toggle")}' if( !defined( $attr{$hash->{NAME}}{devStateIcon} ) );
 		
-		my $dimvalue = int($value);
-		$dimvalue = int($value * 2.54 + 0.5) if (AttrVal($hash->{name}, 'usePercentDimming', 0) == 1);
-
-
-		TradfriLib::lampSetBrightness($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress}, $dimvalue);
-		readingsSingleUpdate($hash, 'dimvalue', int($value), 1);
-	}elsif($opt eq "color"){
-		if(!$hash->{IODev}{canConnect}){
-			return "The gateway device does not allow to connect to the gateway!\nThat usually means, that the software \"coap-client\" isn't found/ executable.\nCheck that and run \"get coapClientVersion\" on the gateway device!";
-		}
-
-		return '"set TradfriDevice color" requires RGB value in format "RRGGBB" or "warm", "cold", "standard"!'  if ($argcount < 3);
-		
-		my $rgb;
-
-		if($value eq "warm"){
-			$rgb = 'EFD275';
-		}elsif($value eq "cold"){
-			$rgb = 'F5FAF6';
-		}elsif($value eq "standard"){
-			$rgb = 'F1E0B5';
-		}else{
-			$rgb = $value;
-		}
-		
-		TradfriLib::lampSetColorRGB($hash->{IODev}{gatewayAddress}, $hash->{IODev}{gatewaySecret}, $hash->{deviceAddress}, $rgb);
-		readingsSingleUpdate($hash, 'color', $rgb, 1);
+		#return the appropriate device's name
+		return $hash->{NAME}; 
 	}
-
-	return undef;
-
-	#return "$opt set to $value.";
-}
-
-
-sub TradfriDevice_Attr(@) {
-	my ($cmd,$name,$attr_name,$attr_value) = @_;
-	if($cmd eq "set") {
-		if($attr_name eq "autoUpdateInterval"){
-			if($attr_value eq ''){
-				return "You need to specify the interval!";
-			}
-			if($attr_value ne 0){
-				my $hash = $defs{$name};
-
-				InternalTimer(gettimeofday()+AttrVal($hash->{name}, 'autoUpdateInterval', 30), "TradfriDevice_GetUpdate", $hash);
-			}
-		}
-	}
+	
 	return undef;
 }
+
 
 1;
 
@@ -432,8 +174,9 @@ sub TradfriDevice_Attr(@) {
               <li><i>color</i>
                   Set the color temperature of a bubl<br>
                   Of course, that only works with bulbs, that can change their color temperature<br>
-                  You may pass "warm", "cold", "standard" or a RGB code in the format "RRGGBB" (though you can't use all RGB codes)<br>
-                  IKEA uses the following RGB codes for their colors:<br>
+                  You may pass "warm", "cold", "standard" or a RGB code in the format "RRGGBB"<br>
+                  Any RGB code can be set, though the bulb only is able to switch to certain colors.<br>
+                  IKEA uses the following RGB codes for their colors. Bulbs I've tested could only be set to those.<br>
 				  <ul>
 					<li>F1E0B5 for standard</li>
 					<li>F5FAF6 for cold</li>
@@ -456,56 +199,46 @@ sub TradfriDevice_Attr(@) {
 		<br><br>
         Options:
         <ul>
-              <li><i>createdAt</i><br>
-                  Get the date and the time, when the device was paired.<br>
-                  Additionally, the reading "createdAt" gets set to the resulting value.</li>
-              <li><i>deviceInfo</i><br>
-                  The RAW JSON-formatted data, that was returned from the device info. Just for development and/ or additional info</li>
-              <li><i>dimvalue</i><br>
-                  Get the brightness value of the device<br>
-                  Additionally, the reading "dimvalue" gets set to the resulting value.</li>
-              <li><i>manufacturer</i><br>
-                  Get the manufacturer of the device<br>
-                  Additionally, the reading "manufacturer" gets set to the resulting value.<br>
-                  For IKEA devices, this is "IKEA of Sweden".</li>
-              <li><i>name</i><br>
-                  Get user defined name of the device<br>
-                  Additionally, the reading "name" gets set to the resulting value.</li>
-              <li><i>softwareVersion</i><br>
-                  Get user software version of the device<br>
-                  Additionally, the reading "softwareVersion" gets set to the resulting value.</li>
-              <li><i>state</i><br>
-                  Get the state (-> on/off) of the device<br>
-                  Additionally, the reading "state" gets set to the resulting value.</li>
-              <li><i>reachableState</i><br>
-                  Get, whether the device is reported as reachable by the gateway.<br>
-                  Additionally, the reading "reachableState" gets set to the resulting value.</li>
-              <li><i>lastSeen</i><br>
-                  Get a timestamp, when the device was last seen by the gateay.<br>
-                  However, this value seems to be somehow senseless. In my case, the devices were last seen about three hours ago - though I've just set/ read their values<br>
-                  Futher investigation of this value is required<br>
-                  Additionally, the reading "lastSeen" gets set to the resulting value.</li>
+              <li><i></i><br>
+                  There are no gets implemented</li>
+        </ul>
+    </ul>
+    <br>
+
+    <a name="TradfriDevicereadings"></a>
+    <b>Readings</b><br>
+    <ul>
+        The following readings are displayed for a device. Once there is a change and the connection to the gateway is made, they get updated automatically.
+		<br><br>
+        Readings:
+        <ul>
               <li><i>color</i><br>
-                  Get the RGB color code that the bulb is set to, in format rrggbb.<br>
-                  If the device doesn't support to change the color, this will return 0<br>
-                  IKEA uses the following RGB codes for their colors:<br>
-                  <ul>
-					<li>F1E0B5 for standard</li>
-					<li>F5FAF6 for cold</li>
-					<li>EFD275 for warm</li>
-				  </ul>
-                  Additionally, the reading "color" gets set to the resulting value.</li>
+                  The color that is set for this bulb. Its value is a hexadecimal code in the format "RRGGBB".<br>
+                  If the device doesn't support the change of colors the reading's value will be "0"</li>
+              <li><i>createdAt</i><br>
+                  A timestamp string, like "Sat, 15 Apr 2017 18:29:24 GMT", that indicates, when the device was paired with the gateway.</li>
+              <li><i>dimvalue</i><br>
+                  The brightness that is set for this device. It is a integer in the range of 0 to 100/ 254.<br>
+                  The greatest dimvalue depends on the attribute "usePercentDimming", see below.</li>
+              <li><i>pct</i><br>
+                  The brightness that is set for this device in percent.</li>
+              <li><i>lastSeen</i><br>
+                  A timestamp string, like "Wed, 12 Jul 2017 14:32:06 GMT". I haven't understand the mechanism behind it yet.<br>
+                  Communication with the device won't update the lastSeen-timestamp - so I don't get the point of it. This needs some more investigation.</li>
+              <li><i>manufacturer</i><br>
+                  The device's manufacturer. Since there are only devices from IKEA available yet, it'll surely be "IKEA of Sweden".</li>
+              <li><i>name</i><br>
+                  The name of the device that you've set in the app.</li>
+              <li><i>onoff</i><br>
+                  Indicates whether the device is on or off, can be the strings 'on' or 'off'</li>
+              <li><i>reachableState</i><br>
+                  Indicates whether the gateway is able to connect to the device. This reading's value is either "0" or "1", where "1" indicates reachability.</li>
+              <li><i>softwareVersion</i><br>
+                  The version of the software that is running on the device.</li>
+              <li><i>state</i><br>
+                  Indicates, whether the device is on or off. Thus, the reading's value is either "on" or "off", too.</li>
               <li><i>type</i><br>
-                  Get the type of the device<br>
-                  Additionally, the reading "type" gets set to the resulting value.<br>
-                  I've had the following types for development:
-					<ul>
-						<li>TRADFRI bulb E27 opal 1000lm</li>
-						<li>TRADFRI bulb E14 WS opal 400lm</li>
-					</ul>
-                  </li>
-              <li><i>updateInfo</i><br>
-                  Update the readings color, createdAt, dimvalue, manufacturer, name, softwareVersion, state, reachableState, lastSeen and type according to the above described values.</li>
+                  The product type of the device. Is a string like "TRADFRI bulb E27 opal 1000lm"</li>
         </ul>
     </ul>
     <br>
@@ -520,10 +253,6 @@ sub TradfriDevice_Attr(@) {
         <br><br>
         Attributes:
         <ul>
-            <li><i>autoUpdateInterval</i> <time-seconds><br>
-            	If this value is not 0 or undefined, the readings readings color, createdAt, dimvalue, manufacturer, name, softwareVersion, state, reachableState, lastSeen and type will be updated automatically.<br>
-            	The value is the duration between the updates, in seconds.
-            </li>
             <li><i>usePercentDimming</i> 0/1<br>
             	If this attribute is one, the largest value for "set dimvalue" will be 100.<br>
             	Otherwise, the largest value is 254.<br>
