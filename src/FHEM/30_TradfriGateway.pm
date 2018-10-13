@@ -1,22 +1,13 @@
 # @author Peter Kappelt
-# @author Sebastian Keßler
+# @author Sebastian Kessler
 
-# @version 1.16.dev-cf.10
+# @version 1.18
 
 package main;
 use strict;
 use warnings;
 
 require 'DevIo.pm';
-
-my %TradfriGateway_sets = (
-	#'reopen'	=> ' ',
-);
-
-my %TradfriGateway_gets = (
-	'deviceList'	=> ' ',
-	'groupList'		=> ' ',
-);
 
 sub TradfriGateway_Initialize($) {
 	my ($hash) = @_;
@@ -35,44 +26,42 @@ sub TradfriGateway_Initialize($) {
 			"1:TradfriDevice" => '^subscribedDeviceUpdate::',
 			"2:TradfriGroup" => '(^subscribedGroupUpdate::)|(^moodList::)' ,
 			};
+
+#	$hash->{AttrList} =
+#		"JTradfriSocket "
+#		. $readingFnAttributes;
+
 }
 
 sub TradfriGateway_Define($$) {
 	my ($hash, $def) = @_;
 	my @param = split('[ \t]+', $def);
 	
-	if(int(@param) < 4) {
-		return "too few parameters: define <name> TradfriGateway <gateway-ip> <gateway-secret>";
+	if(int(@param) < 3) {
+		return "too few parameters: define <name> TradfriGateway <jTradfrie-ip:port>";
+	}
+	
+	$hash->{name}  = $param[0];
+	
+	if ($param[2] =~ /\b(\d{1,3}(?:\.\d{1,3}){3}:\d{1,5})\b/) {
+		$hash->{DeviceName} = $param[2];
+	}else {
+		return "Invalid parameters: define <name> TradfriGateway <jTradfrie-ip:port> like 192.168.178.100:1505";
 	}
 
 	#close connection to socket, if open
-	DevIo_CloseDev($hash);
+	DevIo_CloseDev($hash) if(DevIo_IsOpen($hash));  
 	
-	$hash->{name}  = $param[0];
-
-	$hash->{gatewayAddress} = $param[2];
-	$hash->{gatewaySecret} = $param[3];
-
-	# @todo make user settable
-	$hash->{DeviceName} = "localhost:1505";
-
-	if(int(@param) > 4){
-		#there was a fifth parameter
-		#it is the path to the coap client, add it to the environments path
-		#Edit: it is obsolete now! Give advice to the user
-		Log(0, "[TradfriGateway] The parameter \"coap-client-directory\" in the gateway's definition is obsolete now! Please remove it as soon as possible!")
-	}
-
 	#open the socket connection
-	#@todo react to return code
 	DevIo_OpenDev($hash, 0, "TradfriGateway_DeviceInit");
-
-	return undef;
 }
 
 sub TradfriGateway_Undef($$) {
 	my ($hash, $arg) = @_; 
-	# nothing to do
+	  
+	# close the connection 
+	DevIo_CloseDev($hash);
+	
 	return undef;
 }
 
@@ -133,9 +122,9 @@ sub TradfriGateway_Write ($@){
 		return "Unknown command: " . $command;
 	}
 
-	#@todo better check, if opened
-	if($hash->{STATE} ne 'opened'){
-		Log(1, "[TradfriGateway] Can't write, connection is not opened!");
+	#Check if open with DevIO
+	if(!DevIo_IsOpen($hash)){
+		Log(1, "TradfriGateway: Can't write, connection is not opened!");
 		return "Can't write, connection is not opened!";
 	}
 
@@ -189,66 +178,59 @@ sub TradfriGateway_Ready($){
 	return DevIo_OpenDev($hash, 1, "TradfriGateway_DeviceInit") if($hash->{STATE} eq "disconnected");
 }
 
+sub TradfriGateway_Get($@) {	
+	my ( $hash, $name, $opt, @args ) = @_;
 
-sub TradfriGateway_Get($@) {
-	my ($hash, @param) = @_;
-	
-	return '"get TradfriGateway" needs at least one argument' if (int(@param) < 2);
-	
-	my $name = shift @param;
-	my $opt = shift @param;
-	if(!$TradfriGateway_gets{$opt}) {
-		my @cList = keys %TradfriGateway_gets;
-		return "Unknown argument $opt, choose one of " . join(" ", @cList);
-	}
-	
+	return "\"get $name\" needs at least one argument" unless(defined($opt));
+
 	if($opt eq 'deviceList'){
 		TradfriGateway_Write($hash, 0, 'list');
+		return "get deviceList done"
 	}elsif($opt eq 'groupList'){
 		TradfriGateway_Write($hash, 1, 'list');
+		return "get groupList done"
+	}else {
+		return "Unknown argument $opt, choose one of deviceList:noArg groupList:noArg";
 	}
-
-	return $TradfriGateway_gets{$opt};
 }
 
 sub TradfriGateway_Set($@) {
-	my ($hash, @param) = @_;
+	my ($hash, $name, $cmd) = @_;
 	
-	return '"set TradfriGateway" needs at least one argument' if (int(@param) < 2);
-	
-	my $name = shift @param;
-	my $opt = shift @param;
-	my $value = join("", @param);
-	
-	if(!defined($TradfriGateway_sets{$opt})) {
-		my @cList = keys %TradfriGateway_sets;
-		return "Unknown argument $opt, choose one of " . join(" ", @cList);
-	}
+	return "\"set $name\" needs at least one argument" unless(defined($cmd));
 
-	if($opt eq "reopen"){
-		#close connection to socket, if open
-		DevIo_CloseDev($hash);
+	if($cmd eq "reopen"){
+		if(DevIo_IsOpen($hash)){
+			#close connection to socket, if open
+			
+			DevIo_CloseDev($hash);
+			Log 3, "TradfriGateway: Disconnect from  ".$hash->{DeviceName};
+		}
 		#@todo react to return code
-		my $ret = DevIo_OpenDev($hash, 0, "TradfriGateway_DeviceInit");
+		DevIo_OpenDev($hash, 0, "TradfriGateway_DeviceInit");
+		
+	}else{
+		return "unknown argument $cmd, choose one of reopen:noArg";
 	}
-
-	return undef;
 }
 
-
 sub TradfriGateway_Attr(@) {
-	my ($cmd,$name,$attr_name,$attr_value) = @_;
+	my ($cmd,$name, $attrName,$attrVal) = @_;
+	my @hashL;
+	my $hash = $defs{$name};
 	if($cmd eq "set") {
-		#if($attr_name eq "formal") {
-		#	if($attr_value !~ /^yes|no$/) {
-		#		my $err = "Invalid argument $attr_value to $attr_name. Must be yes or no.";
-		#		Log 3, "TradfriGateway: ".$err;
-		#		return $err;
-		#	}
-		#} else {
-		#	return "Unknown attr $attr_name";
-		#}
+		if ($attrName eq "JTradfriSocket"){
+			if ($attrVal =~ /\b(\d{1,3}(?:\.\d{1,3}){3}:\d{1,5})\b/)
+			{
+				$hash->{DeviceName} = $attrVal;
+			} else {
+				my $err = "Invalid argument $attrVal to $attrName. Must be a socket like 192.168.178.100:1505.";
+				Log 3, "TradfriGateway: ".$err;
+				return $err;
+			}
+		}
 	}
+
 	return undef;
 }
 
