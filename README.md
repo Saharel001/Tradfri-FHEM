@@ -79,9 +79,10 @@ You need to do as follows in order to control a bulb:
 ### 2. Control a single device
 * Get the list of devices: `get TradfriGW deviceList`. It will return something like that:  
    ```
-   - 65536: IKEA of Sweden TRADFRI wireless dimmer (TRADFRI wireless dimmer) 
-   - 65537: IKEA of Sweden TRADFRI bulb E27 opal 1000lm (Fenster Links) 
-   - 65538: IKEA of Sweden TRADFRI bulb E27 opal 1000lm (Fenster Rechts) 
+   65541 => Wohnzimmer Remote 
+   65543 => TRADFRI remote control 2 
+   65545 => TRADFRI remote control 3 
+
    ```   
    In my setup, there are three devices: Two bulbs and one control unit. The devices are labeled with the names you configured in the app.  
 * Define a new device, with one of the adresses you've just found out (it must be a bulb's address, this module is unable to interact with controllers): `define Bulb1 TradfriDevice 65537`
