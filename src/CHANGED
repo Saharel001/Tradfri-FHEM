@@ -1,18 +1,20 @@
+- 22.10.2018 (1.18.1.cf1)
+  - feature:    TradfriIo.pm: added
 
-- 9.8.2018 (1.18.1)
+- 22.10.2018 (1.18.1)
   - bugfix:     30_TradfriGateway: remove empty return from GET
-  - todo:       30_TradfriGateway: Check if connection open
-  - feature:	30_TradfriGateway: set reopen, remove jTradfrieSocket attribute, define change to define <name> TradfriGateway <jTradfrie-ip:port>. Please remove attr jTradfrieSocket bevor you update.
-  
-- 9.8.2018 (1.18)
+  - feature:    30_TradfriGateway: Check if connection open
+  - feature:    30_TradfriGateway: set reopen, remove jTradfrieSocket attribute, define change to define <name> TradfriGateway <jTradfrie-ip:port>. Please remove attr jTradfrieSocket bevor you update.
+
+- 9.10.2018 (1.18)
   - bugfix:     30_TradfriGateway: rename jTradfrieSocket attribute to jTradfriSocket
-  
-- 9.8.2018 (1.18)
+
+- 9.10.2018 (1.17)
   - feature:    30_TradfriGateway: add jTradfriSocket attribute
   - bugfix:     31_TradfriGroup: add new author and version
   - bugfix:     31_TradfriDevice: add new author and version
   - bugfix:     TradfriUtils.pm: add new author and version
-  
+
 - 27.8.2017 (1.16.dev-cf.9)
   - bugfix:     Error messages with some Perl versions
 
