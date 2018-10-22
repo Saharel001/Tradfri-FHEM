@@ -69,20 +69,17 @@ These points will be implemented later:
 You need to do as follows in order to control a bulb:
 ### 1. Declare the Gateway-Connection
 
-* Define a new device in you FHEM setup: `define TradfriGW TradfriGateway <Gateway-IP> <Gateway-Secret-Key>`.
+* Define a new device in you FHEM setup: `define TradfriGW TradfriGateway <Gateway-Socket>`.
 * Don't forget to install the Perl JSON packages (JSON.pm). See "Prerequisites" for a hint how I've installed them.
-* You can use the gateway's IP address or its DNS name
-* You can find the Secret Key on the bottom side of your gateway. It is marked as the "Security Code".
-* Add attribut `jTradfriSocket` if your jTradfri run on another Server. 
+* You can use the gateway's IP address or its DNS name, don't forget the network port.
 * Save your config by running the `save` command in FHEM 
 
 ### 2. Control a single device
 * Get the list of devices: `get TradfriGW deviceList`. It will return something like that:  
    ```
-   65541 => Wohnzimmer Remote 
+   65541 => Livingroom Remote 
    65543 => TRADFRI remote control 2 
    65545 => TRADFRI remote control 3 
-
    ```   
    In my setup, there are three devices: Two bulbs and one control unit. The devices are labeled with the names you configured in the app.  
 * Define a new device, with one of the adresses you've just found out (it must be a bulb's address, this module is unable to interact with controllers): `define Bulb1 TradfriDevice 65537`
@@ -97,9 +94,9 @@ You need to do as follows in order to control a bulb:
 ### 3. Control a lighting group
 * Get the list of groups: `get TradfriGW groupList`. It will return something like that:  
    ```
-   - 193768: Wohnzimmer
+   168311 => Entrance
    ```   
-   In my setup, there is only one group called "Wohnzimmer".
+   In my setup, there is only one group called "Entrance".
 * Define a new group, with one of the adresses you've just found out: `define Group1 TradfriGroup 193768`
 * Check, if the gateway device was asigned correctly as the IODev
 * You can now control this group, like a single device:  
@@ -113,6 +110,8 @@ You need to do as follows in order to control a bulb:
 
 Actually, this shouldn't happen anymore. Wait 5 seconds, and all processes, that are related to this Trådfri module, should kill themselves (if there is a configuration error, that isn't yet handled by this module).    
 If you managed to kill this module, fell free to contact me (with your log, you configuration and a description, of what you did to make FHEM unresponsible).
+
+In most cases if Jtradfri not resonse, the IKEA Gateway are crashed. In this case you must be restart the gateway and the jTradfri service after that too.
 
 ## Credits
 FORK from https://github.com/peterkappelt/Tradfri-FHEM
