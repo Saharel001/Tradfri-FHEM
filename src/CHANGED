@@ -1,3 +1,6 @@
+- 22.10.2018 (1.18.1.cf2)
+  - bugfix:    TradfriIo.pm: syntax error at FHEM/TradfriIo.pm line 396
+
 - 22.10.2018 (1.18.1.cf1)
   - feature:    TradfriIo.pm: added
 

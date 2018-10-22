@@ -393,7 +393,7 @@ sub
 DevIo_IsOpen($)
 {
   my ($hash) = @_;
-  return ($hash->{TCPDev};
+  return ($hash->{TCPDev});
 }
 
 # Close the device, schedule the reopen via ReadyFn, trigger DISCONNECTED
