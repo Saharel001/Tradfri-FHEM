@@ -73,8 +73,8 @@ You need to do as follows in order to control a bulb:
 * Don't forget to install the Perl JSON packages (JSON.pm). See "Prerequisites" for a hint how I've installed them.
 * You can use the gateway's IP address or its DNS name
 * You can find the Secret Key on the bottom side of your gateway. It is marked as the "Security Code".
+* Add attribut `jTradfriSocket` if your jTradfri run on another Server. 
 * Save your config by running the `save` command in FHEM 
-* Check, whether the module can detect and access the just compiled software "coap-client" by running `get TradfriGW coapClientVersion`. If it returns something, that looks like a version number, everything should be fine. If it returns "UNKNOWN" there is a problem. Probably, the coap-client directory is not stored in path.
 
 ### 2. Control a single device
 * Get the list of devices: `get TradfriGW deviceList`. It will return something like that:  

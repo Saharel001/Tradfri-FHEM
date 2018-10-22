@@ -1,3 +1,9 @@
+
+- 22.10.2018 (1.18.1)
+  - bugfix:     30_TradfriGateway: remove empty return from GET
+  - todo:       30_TradfriGateway: Check if connection open
+  - feature:	30_TradfriGateway: set reopen, remove jTradfrieSocket attribute, define change to define <name> TradfriGateway <jTradfrie-ip:port>. Please remove attr jTradfrieSocket bevor you update.
+  
 - 9.8.2018 (1.18)
   - bugfix:     30_TradfriGateway: rename jTradfrieSocket attribute to jTradfriSocket
   
