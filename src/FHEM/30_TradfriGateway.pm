@@ -1,13 +1,16 @@
 # @author Peter Kappelt
 # @author Sebastian Kessler
 
-# @version 1.18.1.cf1
+# @version 1.18.1.cf3
 
 package main;
 use strict;
 use warnings;
 
-require 'TradfriIo.pm';
+use Data::Dumper;
+use JSON;
+
+use TradfriIo;
  
 sub TradfriGateway_Initialize($) {
 	my ($hash) = @_;
@@ -152,11 +155,27 @@ sub TradfriGateway_Read ($){
 		#devices and groups
 		#@todo not as JSON array
 		if(($message ne '') && ((split(/::/, $message))[0] =~ /(?:group|device)List/)){
-			if((split(/::/, $message))[0] eq 'deviceList'){
-				return readingsSingleUpdate($hash, 'devices', (split(/::/, $message))[1], 1);
+			my @newmsg = split(/::/, $message);
+			my $returnstring ="";
+			#parse the JSON data
+			my $jsonData = eval{ JSON->new->utf8->decode($newmsg[1]) };
+			if($@){
+				Log 3, "TradfriGateway: - ".$newmsg[1]." - can't be eval as JSON";
+				return undef; #the string was probably not valid JSON
 			}
-			if((split(/::/, $message))[0] eq 'groupList'){
-				return readingsSingleUpdate($hash, 'groups', (split(/::/, $message))[1], 1);
+			if($newmsg[0] eq 'deviceList'){
+				my @items = @{ $jsonData };
+				foreach my $item ( @items ) { 
+					$returnstring = $returnstring.$item->{'deviceid'}." => ".$item->{'name'}."\n";
+				}
+				return readingsSingleUpdate($hash, 'devices', $returnstring, 1);
+			}
+			if($newmsg[0] eq 'groupList'){
+				my @items = @{ $jsonData };
+				foreach my $item ( @items ) { 
+					$returnstring = $returnstring.$item->{'groupid'}." => ".$item->{'name'}."\n";
+				}
+				return readingsSingleUpdate($hash, 'groups', $returnstring, 1);
 			}
 		}
 

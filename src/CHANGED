@@ -1,4 +1,7 @@
-- 22.10.2018 (1.18.1.cf2)
+- 22.10.2018 (1.18.1.cf3)
+  - feature:    30_TradfriGateway: Change readable of gateway readings
+
+  - 22.10.2018 (1.18.1.cf2)
   - bugfix:    TradfriIo.pm: syntax error at FHEM/TradfriIo.pm line 396
 
 - 22.10.2018 (1.18.1.cf1)
