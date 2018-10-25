@@ -16,7 +16,6 @@ Since there is no documentation yet, FHEM might throw some errors during update.
 
 **Summary:**
 * Perl JSON packages (JSON.pm), on my setups they can be installed by running `sudo apt-get install libjson-perl`
-* libcoap, and its binary coap-client
 * IKEA devices: a gateway, a bulb and a remote control/ dimmer
 
 You need to have an IKEA Trådfri Bulb or Panel, a Control-Device (e.g. the Dimmer) and the Gateway.  
