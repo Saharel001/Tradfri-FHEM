@@ -1,5 +1,5 @@
 - 22.10.2018 (1.18.2)
-  - feature:    30_TradfriGateway: Change readable of gateway readings
+  - feature:    30_TradfriGateway: Change view of gateway readings
     feature:    TradfriIo.pm: added and use, using from DevIO ending now.
 
 - 22.10.2018 (1.18.1)
