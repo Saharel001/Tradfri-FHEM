@@ -22,11 +22,6 @@ You need to have an IKEA Trådfri Bulb or Panel, a Control-Device (e.g. the Dimm
 The gateway has to be set-up with the App, the control device and the bulbs need to be paired.  
 __Caution__: Do not make the same mistake I've made. You can __not__ just buy a bulb and a gateway. You need a control device, like the round dimmer, too!
 
-The JSON-Perl packages are required.
-```
-sudo apt-get libjson-perl
-```
-
 ## What this module can do
 
 You can currently do the following with the devices.
