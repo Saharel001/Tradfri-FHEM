@@ -1,4 +1,4 @@
-#STOP DEVELOPMENT
+# STOP DEVELOPMENT
 I only develop the fhem modul, after Peter stop his development i do this too.
 My future sulution is a change to a HUE Bridge.
 
