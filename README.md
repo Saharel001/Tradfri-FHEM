@@ -1,3 +1,8 @@
+#STOP DEVELOPMENT
+I only develop the fhem modul, after Peter stop his development i do this too.
+My future sulution is a change to a HUE Bridge.
+
+
 # FHEM Trådfri Module
 
 This is a small extension module for the FHEM Home-Control software. It enables connectivity to an IKEA Trådfri gateway.
